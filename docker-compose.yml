@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: rural_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rural
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: rural_web
+    depends_on:
+      - db
+    environment:
+      # SQLAlchemy URL (com psycopg2)
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/rural
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app  # hot-reload se mudarmos o comando depois
+
+volumes:
+  pgdata:

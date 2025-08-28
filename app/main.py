@@ -1,20 +1,33 @@
 # app/main.py
+import os
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from sqlalchemy import text
 from app.database import Base, engine, SessionLocal
-from app import models  # <-- IMPORTANTE: registra os modelos no metadata
+from app import models  
+from app.routers import producers, farms, seasons, plantings, dashboard
 
-app = FastAPI(title="Rural Registry (MVP)", version="0.0.3")
+TESTING = os.getenv("TESTING") == "1"
+
+app = FastAPI(title="Rural Registry (MVP)", version="0.0.7")
 
 @app.on_event("startup")
 def on_startup():
-    # garante que as tabelas existam
     Base.metadata.create_all(bind=engine)
-    # ping no banco só pra confirmar conexão
     with SessionLocal() as db:
         db.execute(text("SELECT 1"))
     logger.info("DB ok e tabelas garantidas.")
+
+# servir arquivos estáticos (CSS)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# inclui as rotas 
+app.include_router(dashboard.router)
+app.include_router(producers.router)
+app.include_router(farms.router)
+app.include_router(seasons.router)  
+app.include_router(plantings.router)
 
 @app.get("/health")
 def health():

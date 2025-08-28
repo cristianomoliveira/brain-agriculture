@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="grid">
+    <div class="kpi">
+      <h3>Total de Fazendas</h3>
+      <p class="big">{{ total_farms }}</p>
+    </div>
+    <div class="kpi">
+      <h3>Total de Hectares</h3>
+      <p class="big">{{ "%.2f"|format(total_hectares) }}</p>
+    </div>
+  </section>
+
+  <section class="card" style="margin-bottom:1rem;">
+    <div class="filterbar">
+      <label>
+        Estado (UF):
+        <select id="state-select">
+          <option value="">Todos</option>
+        </select>
+      </label>
+      <label>
+        Safra:
+        <select id="season-select">
+          <option value="">Todas</option>
+        </select>
+      </label>
+      <div class="spacer"></div>
+      <button id="export-culture" class="btn">Exportar Culturas (CSV)</button>
+      <button id="export-landuse" class="btn">Exportar Uso do Solo (CSV)</button>
+    </div>
+  </section>
+
+  <section class="grid charts">
+    <div class="card">
+      <h4>Fazendas por Estado</h4>
+      <div id="chart-state" style="width:100%; height:360px;"></div>
+    </div>
+    <div class="card">
+      <h4>Cultura Plantada</h4>
+      <div id="chart-culture" style="width:100%; height:360px;"></div>
+    </div>
+    <div class="card">
+      <h4>Uso do Solo</h4>
+      <div id="chart-landuse" style="width:100%; height:360px;"></div>
+    </div>
+  </section>
+
+  <!-- ECharts via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script>
+    async function fetchJSON(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error("Erro ao buscar " + url);
+      return r.json();
+    }
+
+    function buildQuery(params) {
+      const qs = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && String(v).trim() !== "") qs.append(k, v);
+      });
+      const s = qs.toString();
+      return s ? "?" + s : "";
+    }
+
+    function pieOption(title, data) {
+      return {
+        title: { text: title, left: "center" },
+        tooltip: { trigger: "item" },
+        series: [{
+          type: "pie",
+          radius: "65%",
+          data,
+          emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0,0,0,0.5)" } },
+          label: { formatter: '{b}: {d}%' }
+        }]
+      };
+    }
+
+    async function loadFilters() {
+      const { states, seasons } = await fetchJSON("/dashboard/data/filters");
+      const selState = document.getElementById("state-select");
+      const selSeason = document.getElementById("season-select");
+
+      states.forEach(uf => {
+        const opt = document.createElement("option");
+        opt.value = uf; opt.textContent = uf;
+        selState.appendChild(opt);
+      });
+
+      seasons.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.id; opt.textContent = s.name;
+        selSeason.appendChild(opt);
+      });
+    }
+
+    async function renderCharts() {
+      const selState = document.getElementById("state-select");
+      const selSeason = document.getElementById("season-select");
+      const params = {
+        state: selState.value || undefined,
+        season_id: selSeason.value || undefined,
+      };
+
+      const elState   = document.getElementById("chart-state");
+      const elCulture = document.getElementById("chart-culture");
+      const elLanduse = document.getElementById("chart-landuse");
+
+      const chartState   = echarts.init(elState);
+      const chartCulture = echarts.init(elCulture);
+      const chartLanduse = echarts.init(elLanduse);
+
+      const [stateData, cultureData, landuseData] = await Promise.all([
+        fetchJSON("/dashboard/data/state"), // gráfico geral (sem filtro)
+        fetchJSON("/dashboard/data/culture" + buildQuery(params)),
+        fetchJSON("/dashboard/data/landuse" + buildQuery({ state: params.state })),
+      ]);
+
+      chartState.setOption(pieOption(stateData.title, stateData.data));
+      chartCulture.setOption(pieOption(cultureData.title, cultureData.data));
+      chartLanduse.setOption(pieOption(landuseData.title, landuseData.data));
+
+      window.addEventListener("resize", () => {
+        chartState.resize(); chartCulture.resize(); chartLanduse.resize();
+      });
+    }
+
+    function wireExports() {
+      const selState = document.getElementById("state-select");
+      const selSeason = document.getElementById("season-select");
+      document.getElementById("export-culture").addEventListener("click", () => {
+        const href = "/dashboard/export/culture.csv" + buildQuery({
+          state: selState.value || undefined,
+          season_id: selSeason.value || undefined,
+        });
+        window.open(href, "_blank");
+      });
+      document.getElementById("export-landuse").addEventListener("click", () => {
+        const href = "/dashboard/export/landuse.csv" + buildQuery({
+          state: selState.value || undefined,
+        });
+        window.open(href, "_blank");
+      });
+    }
+
+    async function init() {
+      await loadFilters();
+      await renderCharts();
+      wireExports();
+
+      // Re-render quando os filtros mudarem
+      document.getElementById("state-select").addEventListener("change", renderCharts);
+      document.getElementById("season-select").addEventListener("change", renderCharts);
+    }
+
+    init().catch(err => console.error(err));
+  </script>
+{% endblock %}

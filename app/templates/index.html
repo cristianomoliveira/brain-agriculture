@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="card">
+    <h2>Bem-vindo 👋</h2>
+    <p>Use a API para cadastrar produtores, fazendas, safras e plantios. Visualize os gráficos no Dashboard.</p>
+    <pre>
+# Exemplo de criação de produtor (via Swagger em /docs ou curl)
+POST /api/producers
+{"cpf_cnpj": "39053344705", "name": "Joana Silva"}
+    </pre>
+  </section>
+{% endblock %}
